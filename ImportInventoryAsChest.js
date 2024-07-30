@@ -2,28 +2,37 @@ var MAXX = 5;       // width
 var MAXZ = 250;     // depth
 var MAXY = 3;       // height
 var EACH_PLAYER_FILE_COUNT = 5;
+var NBT_SAVED_PATH = "plugins/ImportInventoryAsChest/saved";
 
 // Array Helper
 Array.prototype.removeIf = function (target) {
-	// 需要移除元素的索引集合
+	// Set of indexes of elements need to be removed
     let indexList = [];
     for (let i = 0; i < this.length; i++) {
         if (target(this[i]) === true) {
             indexList.unshift(i);
         }
     }
-    // 倒着删
+    // delete elements backwards
     for (let index of indexList) {
         this.splice(index, 1);
     }
     return indexList.length > 0;
 };
 
-
+function parseBinaryNbtFromFile(filePath)
+{
+    let f = new File(filePath, File.ReadMode, true);
+    let inventoryNbt = NBT.parseBinaryNBT(f.readAllSync());
+    f.close();
+    return inventoryNbt;
+}
 
 function importInventory(basePlayerName, filesList, totalCount)
 {
     filesList.sort();
+    let pl = mc.getPlayer(basePlayerName);
+    let playerPos = pl.feetPos;
 
     let done = false;
     for(let z=0; z<MAXZ; z++)
@@ -42,17 +51,40 @@ function importInventory(basePlayerName, filesList, totalCount)
                     tempList.pop();
                     let currentPlayerName = (tempList.length == 1 ? tempList[0] : tempList.join('-'));
 
-                    logger.info(`Processing player #${currentId} ${currentPlayerName}`);
+                    logger.info(`Processing player #${currentId}: ${currentPlayerName}`);
+
+                    let mainChestPos = new IntPos(playerPos.x+x*4, playerPos.y+y, playerPos.z+z*3+1, 0);
+                    let enderChestPos = new IntPos(playerPos.x+x*4+2, playerPos.y+y, playerPos.z+z*3+1, 0);
+                    let signPos = new IntPos(playerPos.x+x*4, playerPos.y+y, playerPos.z+z*3, 0);
 
                     // create chest
-                    let mainChestPos = new IntPos(x*3, y, z*2+1, 0);
-                    let enderChestPos = new IntPos(x*3+2, y, z*2+1, 0);
-                    let signPos = new IntPos(x*3, y, z*2, 0);
-                    logger.info(`Create chest id (${x},${y},${z})`);
-                    // mc.runcmd(`execute as @p[name=${basePlayerName}] run setblock ~+${mainChestPos.x} ~+${mainChestPos.y} ~+${mainChestPos.z} chest`);
-                    // mc.runcmd(`execute as @p[name=${basePlayerName}] run setblock ~+${mainChestPos.x+1} ~+${mainChestPos.y} ~+${mainChestPos.z} chest`);
-                    // mc.runcmd(`execute as @p[name=${basePlayerName}] run setblock ~+${enderChestPos.x} ~+${enderChestPos.y} ~+${enderChestPos.z} chest`);
-                    // mc.runcmd(`execute as @p[name=${basePlayerName}] run setblock ~+${signPos.x} ~+${signPos.y} ~+${signPos.z} birch_wall_sign ["facing_direction"=2]`);
+                    logger.info(`Create chest id (${x},${MAXY-1-y},${z})`);
+                    mc.runcmd(`setblock ${mainChestPos.x} ${mainChestPos.y} ${mainChestPos.z} chest`);
+                    mc.runcmd(`setblock ${mainChestPos.x+1} ${mainChestPos.y} ${mainChestPos.z} chest`);
+                    mc.runcmd(`setblock ${enderChestPos.x} ${enderChestPos.y} ${enderChestPos.z} chest`);
+                    mc.runcmd(`setblock ${signPos.x} ${signPos.y} ${signPos.z} birch_wall_sign ["facing_direction"=2]`);
+                    
+                    // edit sign
+                    let signBlockEntity = mc.getBlock(signPos).getBlockEntity();
+                    let signNbt = signBlockEntity.getNbt();
+                    signNbt.setString("Text",`\n${currentPlayerName}\n(${x},${MAXY-1-y},${z})`);
+                    signBlockEntity.setNbt(signNbt);
+
+                    // import inventory to chest
+                    logger.info(`Importing inventory...`);
+                    let chestBlockEntity = mc.getBlock(mainChestPos).getBlockEntity();
+                    let chestNbt = chestBlockEntity.getNbt();
+                    let nbtFile = NBT_SAVED_PATH + "/" + currentPlayerName + "-Inventory.nbt";
+                    let itemsList = parseBinaryNbtFromFile(nbtFile).getTag("Inventory");
+                    let listSize = itemsList.getSize();
+                    for(let index = 0; index < listSize; index++)
+                    {
+                        let itemCompound = itemsList.getTag(index);
+                        if(itemCompound.getData("Count") == 0)
+                            continue;       // empty slot
+                        chestNbt.getTag("Items").addTag(itemCompound);
+                    }
+                    chestBlockEntity.setNbt(chestNbt);
                 }
                 else{
                     done = true;
@@ -61,21 +93,28 @@ function importInventory(basePlayerName, filesList, totalCount)
             }
         }
     }
+    logger.info(`Success. All work finished`);
 }
 
 function main()
 {
+    let filesList = File.getFilesList(NBT_SAVED_PATH);
+    filesList.removeIf((fileName)=>{ return !fileName.endsWith(".nbt"); });    // Remove non-nbt-data files
+    let totalCount = filesList.length / EACH_PLAYER_FILE_COUNT;
+    logger.info(`Total ${totalCount} players to import`);
+
     mc.regConsoleCmd("importinv", "import inventories as chest", (args) => {
         logger.info("Import process started.");
-        let filesList = File.getFilesList("plugins/ImportInventoryAsChest/saved");
-        filesList.removeIf((fileName)=>{ return !fileName.endsWith(".nbt"); });    // 移除非数据文件
-        let totalCount = filesList.length / EACH_PLAYER_FILE_COUNT;
-        logger.info(`Total ${totalCount} players to import`);
-
         importInventory("bot-base", filesList, totalCount);
-
-        // TODO:output player-position map
     });
+
+    mc.regPlayerCmd("importinv", "import inventories as chest", (pl, args) => {
+        logger.info("Import process started.");
+        // importInventory(pl.realName, filesList, totalCount);
+        importInventory("bot-base", filesList, totalCount);
+    });
+
+    // TODO:output player-position map
 }
 
 main();
