@@ -68,7 +68,7 @@ function importInventory(basePlayerName, filesList, totalCount)
                     mc.runcmd(`setblock ${mainChest2Pos.x} ${mainChest2Pos.y} ${mainChest2Pos.z} chest`);
                     mc.runcmd(`setblock ${enderChestPos.x} ${enderChestPos.y} ${enderChestPos.z} chest`);
                     mc.runcmd(`setblock ${signPos.x} ${signPos.y} ${signPos.z} birch_wall_sign ["facing_direction"=2]`);
-                    File.writeLine(PLAYER_POS_MAP_OUTPUT, `${currentPlayerName}: (${x},${MAXY-1-y},${z})`)      // record to file
+                    File.writeLine(PLAYER_POS_MAP_OUTPUT, `${currentPlayerName}:\t(${x},${MAXY-1-y},${z})`)      // record to file
 
                     // edit sign
                     let signBlockEntity = mc.getBlock(signPos).getBlockEntity();
