@@ -1,5 +1,5 @@
 var MAXX = 5;       // width
-var MAXZ = 250;     // depth
+var MAXZ = 250;     // depth (increase direction)
 var MAXY = 3;       // height
 var EACH_PLAYER_FILE_COUNT = 5;
 var NBT_SAVED_PATH = "plugins/ImportInventoryAsChest/saved";
@@ -47,7 +47,7 @@ function importInventory(basePlayerName, filesList, totalCount)
             if(done) break;
             for(let x=0; x<MAXX; x++)
             {
-                let currentId = z*MAXX*MAXY + (MAXY-1-y)*MAXX + x;      // 前面已有z层，MAXY-1-Y行，x-1个
+                let currentId = z*MAXX*MAXY + (MAXY-1-y)*MAXX + x;      // there are already z layers, MAXY-1-Y rows and x-1 chests before
                 if(currentId + 1 <= totalCount)
                 {
                     let currentPlayerFiles = filesList.slice(currentId*EACH_PLAYER_FILE_COUNT, currentId*EACH_PLAYER_FILE_COUNT+5);
@@ -149,6 +149,7 @@ function importInventory(basePlayerName, filesList, totalCount)
         }
     }
     logger.info(`Success. All work finished`);
+    logger.info(`Player-Pos map has been exported to ${PLAYER_POS_MAP_OUTPUT}`)
 }
 
 function main()
@@ -158,18 +159,10 @@ function main()
     let totalCount = filesList.length / EACH_PLAYER_FILE_COUNT;
     logger.info(`Total ${totalCount} players to import`);
 
-    mc.regConsoleCmd("importinv", "import inventories as chest", (args) => {
-        logger.info("Import process started.");
-        importInventory("bot-base", filesList, totalCount);
-    });
-
     mc.regPlayerCmd("importinv", "import inventories as chest", (pl, args) => {
         logger.info("Import process started.");
-        // importInventory(pl.realName, filesList, totalCount);
-        importInventory("bot-base", filesList, totalCount);
+        importInventory(pl.realName, filesList, totalCount);
     });
-
-    // TODO:output player-position map
 }
 
 main();
